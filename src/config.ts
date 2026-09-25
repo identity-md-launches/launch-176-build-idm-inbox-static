@@ -11,4 +11,6 @@ export const DEFAULT_RETRY_MS = 10_000;
 export const MAX_429_WAIT_MS = 30_000;
 export const MAX_CONCURRENT = 2;
 export const PRICE_MAX_AGE_MS = 3 * 60 * 60 * 1000;
-
+export const REFRESH_INTERVAL_MS = 60_000;
+export const MAX_FOLLOWS = 20;
+export const MESSAGE_COLLAPSE_LENGTH = 2_000;

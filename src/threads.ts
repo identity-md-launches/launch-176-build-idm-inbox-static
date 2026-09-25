@@ -16,6 +16,5 @@ export function buildThreads(owner:string,txs:Transaction[],now=Date.now()):Thre
   for(const tx of txs){if(!tx.to)continue;const decoded=decodeInput(tx.raw_input,tx.successful);if(!decoded)continue;const from=low(tx.from.hash),to=low(tx.to.hash);if(from!==ownerId&&to!==ownerId)continue;const sent=from===ownerId;const post=from===ownerId&&to===ownerId;const party=post?ownerId:(sent?to:from);const list=groups.get(party)??[];list.push({...decoded,tx,sent,date:new Date(tx.timestamp)});groups.set(party,list);}
   return [...groups.entries()].map(([party,messages])=>{
     messages.sort((a,b)=>a.date.getTime()-b.date.getTime());const newest=messages.at(-1)!.date;const sent=messages.filter(m=>m.sent).length;const received=messages.length-sent;const post=party===ownerId;const accepted=safeStorage.get(key('accepted',owner,party))==='1';const request=!post&&sent===0&&!accepted&&ownerId!==low(DEV_BOARD);const newestReceived=[...messages].reverse().find(m=>!m.sent)?.date.getTime()??0;const opened=Number(safeStorage.get(key('opened',owner,party))??0);const unread=newestReceived>Math.max(baseline,opened);const named=messages.at(-1)!.tx[sent?'to':'from'];return {counterparty:party,label:post?'Posts':named?.ens_domain_name||party,messages,newest,sent,received,request,unread,post};
-  }).sort((a,b)=>b.newest.getTime()-a.newest.getTime());
+  }).sort((a,b)=>Number(b.post)-Number(a.post)||b.newest.getTime()-a.newest.getTime());
 }
-
