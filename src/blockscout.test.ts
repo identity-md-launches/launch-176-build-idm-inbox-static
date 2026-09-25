@@ -1,0 +1,11 @@
+import { describe, expect, it, vi } from 'vitest';
+import { BlockscoutClient, mapFallback } from './blockscout';
+const owner='0x1111111111111111111111111111111111111111';
+const row=(hash:string)=>({hash,block_number:1,timestamp:'2026-01-01T00:00:00Z',result:'success',value:'0',raw_input:'0x6869',from:{hash:owner},to:{hash:owner,is_contract:false}});
+const response=(body:unknown,status=200,headers?:Record<string,string>)=>new Response(JSON.stringify(body),{status,headers});
+describe('BlockscoutClient',()=>{
+ it('maps fallback empty receipt status as success and empty to as null',()=>{const tx=mapFallback({hash:'h',blockNumber:'1',timeStamp:'1',isError:'0',txreceipt_status:'',value:'0',input:'0x',from:owner,to:''});expect(tx.successful).toBe(true);expect(tx.to).toBeNull()});
+ it('merges by hash and refresh stops at cached hash',async()=>{const f=vi.fn().mockResolvedValueOnce(response({items:[row('a')],next_page_params:null})).mockResolvedValueOnce(response({items:[row('b'),row('a')],next_page_params:{block_number:1}}));const c=new BlockscoutClient(owner,f);await c.loadInitial();await c.refresh();expect(c.state.transactions.map(t=>t.hash)).toEqual(['a','b']);expect(f).toHaveBeenCalledTimes(2)});
+ it('waits for 429 reset',async()=>{vi.useFakeTimers();const f=vi.fn().mockResolvedValueOnce({status:429,ok:false,headers:new Headers({'x-ratelimit-reset':'1'})}).mockResolvedValueOnce({status:200,ok:true,headers:new Headers(),json:async()=>({items:[],next_page_params:null})});const c=new BlockscoutClient(owner,f as unknown as typeof fetch);const pending=c.loadInitial();for(let i=0;i<8&&c.state.retryInMs===0;i++)await Promise.resolve();expect(c.state.retryInMs).toBe(1000);await vi.advanceTimersByTimeAsync(1000);await pending;expect(f).toHaveBeenCalledTimes(2);vi.useRealTimers()});
+ it('switches after two failures',async()=>{const f=vi.fn().mockResolvedValueOnce(response({},500)).mockResolvedValueOnce(response({},500)).mockResolvedValueOnce(response({result:[{hash:'f',blockNumber:'1',timeStamp:'1',isError:'0',txreceipt_status:'',value:'0',input:'0x6869',from:owner,to:owner}]}));const c=new BlockscoutClient(owner,f);await c.loadInitial();await c.loadInitial();expect(c.state.usingFallback).toBe(true);expect(c.state.transactions[0].hash).toBe('f')});
+});
